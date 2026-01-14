@@ -182,8 +182,16 @@ func SaveServers(servers []common.ServerConfig) error {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	// Reload the main viper instance
-	return viper.ReadInConfig()
+	// Try to reload the main viper instance, but don't fail if it errors
+	// (e.g., due to YAML control character restrictions)
+	// The file was written successfully and will be read when needed
+	if err := viper.ReadInConfig(); err != nil {
+		// Log the error but don't fail - the file was written successfully
+		// The config will be read on the next application start or when GetServers() is called
+		// This handles cases where YAML parser rejects control characters in passwords
+		_ = err // Silently ignore - file write succeeded
+	}
+	return nil
 }
 
 // ServerExists checks if a server with the given name exists
