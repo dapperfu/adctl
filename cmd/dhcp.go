@@ -308,7 +308,7 @@ func dhcpConfigCmdE(cmd *cobra.Command, args []string) error {
 	}
 
 	if serverFlag == ReservedServerName && len(servers) > 1 {
-		return dhcpConfigCommandAll(servers)
+		return dhcpConfigCommandAll(servers, cmd)
 	}
 
 	var server *common.ServerConfig
@@ -316,7 +316,7 @@ func dhcpConfigCmdE(cmd *cobra.Command, args []string) error {
 		server = &servers[0]
 	}
 
-	err = setDHCPConfig(server)
+	err = setDHCPConfig(server, cmd)
 	if err != nil {
 		return err
 	}
@@ -521,7 +521,7 @@ func checkDHCP(server *common.ServerConfig, interfaceName string) (DHCPCheckResp
 }
 
 // setDHCPConfig sets DHCP configuration
-func setDHCPConfig(server *common.ServerConfig) error {
+func setDHCPConfig(server *common.ServerConfig, cmd *cobra.Command) error {
 	// Get current status to preserve existing config
 	currentStatus, err := getDHCPStatus(server)
 	if err != nil {
@@ -530,8 +530,8 @@ func setDHCPConfig(server *common.ServerConfig) error {
 
 	requestBody := make(map[string]any)
 
-	// Set enabled flag if provided
-	if cmd, _ := dhcpConfigCmd.Flags().GetBool("enabled"); cmd {
+	// Set enabled flag if provided, otherwise preserve current
+	if cmd.Flags().Changed("enabled") {
 		requestBody["enabled"] = dhcpConfigEnabled
 	} else {
 		requestBody["enabled"] = currentStatus.Enabled
@@ -819,7 +819,7 @@ func dhcpCheckCommandAll(servers []common.ServerConfig, interfaceName string) er
 	return nil
 }
 
-func dhcpConfigCommandAll(servers []common.ServerConfig) error {
+func dhcpConfigCommandAll(servers []common.ServerConfig, cmd *cobra.Command) error {
 	type ServerResult struct {
 		Server string     `json:"server"`
 		Result DHCPStatus `json:"result,omitempty"`
@@ -829,7 +829,7 @@ func dhcpConfigCommandAll(servers []common.ServerConfig) error {
 	var results []ServerResult
 	for _, server := range servers {
 		result := ServerResult{Server: server.Name}
-		err := setDHCPConfig(&server)
+		err := setDHCPConfig(&server, cmd)
 		if err != nil {
 			result.Error = err.Error()
 		} else {
