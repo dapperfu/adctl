@@ -34,8 +34,10 @@ var dhcpLeasesCmd = &cobra.Command{
 
 // dhcpCheckCmd represents the check command
 var dhcpCheckCmd = &cobra.Command{
-	Use:   "check",
+	Use:   "check <interface>",
 	Short: "Check for active DHCP servers on an interface",
+	Long:  "Check for active DHCP servers on the specified network interface. The interface name is required (e.g., eth0, wlan0).",
+	Args:  cobra.ExactArgs(1),
 	RunE:  dhcpCheckCmdE,
 }
 
@@ -268,10 +270,10 @@ func dhcpLeasesCmdE(cmd *cobra.Command, args []string) error {
 
 // dhcpCheckCmdE handles the dhcp check command
 func dhcpCheckCmdE(cmd *cobra.Command, args []string) error {
-	if len(args) < 1 {
-		return fmt.Errorf("interface name is required")
-	}
 	interfaceName := args[0]
+	if interfaceName == "" {
+		return fmt.Errorf("interface name cannot be empty")
+	}
 
 	servers, err := GetCurrentServers()
 	if err != nil {
