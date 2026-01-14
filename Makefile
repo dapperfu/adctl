@@ -7,8 +7,6 @@ SHELL := /bin/bash
 
 # Find go binary - try multiple methods
 GO := $(shell command -v go 2>/dev/null || which go 2>/dev/null || echo /usr/bin/go)
-GORELEASER := $(shell command -v goreleaser 2>/dev/null || which goreleaser 2>/dev/null)
-HAS_GORELEASER := $(if $(GORELEASER),yes,no)
 
 # Ensure PATH includes standard locations
 export PATH := /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$(PATH)
@@ -50,52 +48,16 @@ build:
 	else \
 		echo "Skipping tests (ADCTL_HOST not set). Use 'make build-test' to run tests."; \
 	fi
-	@if [ "$(HAS_GORELEASER)" = "yes" ]; then \
-		echo "Building with goreleaser..."; \
-		$(GORELEASER) build --single-target --snapshot --clean; \
-		if [ -d dist ]; then \
-			BINARY_PATH=$$(find dist -name $(BIN) -type f | head -n 1); \
-			if [ -n "$$BINARY_PATH" ]; then \
-				ln -fs $$BINARY_PATH ./$(BIN); \
-			fi; \
-		fi; \
-	else \
-		echo "Building with go build (goreleaser not found)..."; \
-		$(GO) build -o $(BIN) .; \
-	fi
+	$(GO) build -o $(BIN) .
 
 # Build with tests (requires ADCTL_HOST to be set)
 build-test:
 	$(GO) test ./cmd
-	@if [ "$(HAS_GORELEASER)" = "yes" ]; then \
-		echo "Building with goreleaser..."; \
-		$(GORELEASER) build --single-target --snapshot --clean; \
-		if [ -d dist ]; then \
-			BINARY_PATH=$$(find dist -name $(BIN) -type f | head -n 1); \
-			if [ -n "$$BINARY_PATH" ]; then \
-				ln -fs $$BINARY_PATH ./$(BIN); \
-			fi; \
-		fi; \
-	else \
-		echo "Building with go build (goreleaser not found)..."; \
-		$(GO) build -o $(BIN) .; \
-	fi
+	$(GO) build -o $(BIN) .
 
 # Build without tests
 build-notest:
-	@if [ "$(HAS_GORELEASER)" = "yes" ]; then \
-		echo "Building with goreleaser..."; \
-		$(GORELEASER) build --single-target --snapshot --clean; \
-		if [ -d dist ]; then \
-			BINARY_PATH=$$(find dist -name $(BIN) -type f | head -n 1); \
-			if [ -n "$$BINARY_PATH" ]; then \
-				ln -fs $$BINARY_PATH ./$(BIN); \
-			fi; \
-		fi; \
-	else \
-		echo "Building with go build (goreleaser not found)..."; \
-		$(GO) build -o $(BIN) .; \
-	fi
+	$(GO) build -o $(BIN) .
 
 # Run the binary
 run: build

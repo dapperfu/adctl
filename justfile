@@ -19,8 +19,7 @@ run *ARGS: build
     ./$bin {{ ARGS }}
 
 qbuild:
-    goreleaser build --single-target --snapshot --clean
-    ln -fs dist/adctl_darwin_arm64_v8.0/adctl ./$bin
+    go build -o $bin .
 
 qrun *ARGS: qbuild
     ./$bin {{ ARGS }}
@@ -66,16 +65,13 @@ fmt:
     go fmt
 
 mac: test
-    goreleaser build --single-target --snapshot --clean
-    ln -fs dist/adctl_darwin_arm64_v8.0/adctl ./$bin
+    go build -o $bin .
 
 mac-notest:
-    goreleaser build --single-target --snapshot --clean
-    ln -fs dist/adctl_darwin_arm64_v8.0/adctl ./$bin
+    go build -o $bin .
 
 build: test
-    goreleaser release --snapshot --clean
-    ln -fs dist/adctl_darwin_arm64_v8.0/adctl ./$bin
+    go build -o $bin .
 
 clean:
     go clean -testcache
@@ -88,7 +84,7 @@ install: mac
 
 # TODO: prompt for a tag here?
 # not for now
-# git tag -a v0.1.0 -m "first release, test of goreleaser"
+# git tag -a v0.1.0 -m "first release"
 # git push origin v0.1.0
 # takes two arguments. first is tag (v0.1.0), second is tag description.
 
@@ -97,4 +93,4 @@ release arg1: testall
     rm -rf dist/
     git tag {{ arg1 }}
     git push origin {{ arg1 }}
-    goreleaser release
+    go build -o $bin .

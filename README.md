@@ -37,9 +37,9 @@ All output is json and suitable for piping to `jq` and `gron` and such.
 Just grab the right binary for your platform and run it. No external dependencies.
 
 ## Building
-You may want to build from scratch. I use [just](https://just.systems/) to manage building and testing so everything is in a `justfile`, and `goreleaser` so it gets a little complicated. [Check it out](justfile).
+You may want to build from scratch. I use [just](https://just.systems/) to manage building and testing so everything is in a `justfile`. [Check it out](justfile).
 
-You can do that too, or you can just run`go build`.
+You can do that too, or you can just run `go build`.
 
 ## Testing
 Almost all of my tests run against an AdGuard Home server, I don't have any fancy test harnesses or mocks or anything. YMMV but this approach works for me. They should work for you too.
