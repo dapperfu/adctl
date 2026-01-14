@@ -76,21 +76,35 @@ func GetLogCmdE(cmd *cobra.Command, args []string) error {
 }
 
 func printLog(queryLogs LogArgs) error {
+	servers, err := GetCurrentServers()
+	if err != nil {
+		return err
+	}
 
-	indentedJson, err := getLogCommand(queryLogs)
+	if serverFlag == ReservedServerName && len(servers) > 1 {
+		// Multi-server mode
+		return getLogCommandAll(servers, queryLogs)
+	}
+
+	// Single server mode
+	var server *common.ServerConfig
+	if len(servers) > 0 {
+		server = &servers[0]
+	}
+
+	indentedJson, err := getLogCommand(server, queryLogs)
 	if err != nil {
 		return err
 	}
 
 	fmt.Println(indentedJson.String())
-
 	return nil
 }
 
-func getLogCommand(queryLogs LogArgs) (bytes.Buffer, error) {
+func getLogCommand(server *common.ServerConfig, queryLogs LogArgs) (bytes.Buffer, error) {
 	var indentedJson bytes.Buffer
 
-	baseURL, err := common.GetBaseURL()
+	baseURL, err := common.GetBaseURL(server)
 	if err != nil {
 		return indentedJson, err
 	}
@@ -117,6 +131,7 @@ func getLogCommand(queryLogs LogArgs) (bytes.Buffer, error) {
 	statusQuery := common.CommandArgs{
 		Method: "GET",
 		URL:    baseURL,
+		Server: server,
 	}
 
 	body, err := common.SendCommand(statusQuery)
@@ -127,4 +142,31 @@ func getLogCommand(queryLogs LogArgs) (bytes.Buffer, error) {
 	json.Indent(&indentedJson, body, "", "  ")
 
 	return indentedJson, nil
+}
+
+func getLogCommandAll(servers []common.ServerConfig, queryLogs LogArgs) error {
+	type ServerResult struct {
+		Server string `json:"server"`
+		Result string `json:"result,omitempty"`
+		Error  string `json:"error,omitempty"`
+	}
+
+	var results []ServerResult
+	for _, server := range servers {
+		result := ServerResult{Server: server.Name}
+		logResult, err := getLogCommand(&server, queryLogs)
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			result.Result = logResult.String()
+		}
+		results = append(results, result)
+	}
+
+	output, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
 }

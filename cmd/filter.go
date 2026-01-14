@@ -50,7 +50,23 @@ func CheckFilterCmdE(cmd *cobra.Command, args []string) error {
 }
 
 func PrintFilter(cfa CheckFilterArgs) error {
-	body, err := GetFilter(cfa)
+	servers, err := GetCurrentServers()
+	if err != nil {
+		return err
+	}
+
+	if serverFlag == ReservedServerName && len(servers) > 1 {
+		// Multi-server mode
+		return GetFilterAll(servers, cfa)
+	}
+
+	// Single server mode
+	var server *common.ServerConfig
+	if len(servers) > 0 {
+		server = &servers[0]
+	}
+
+	body, err := GetFilter(server, cfa)
 	if err != nil {
 		return err
 	}
@@ -58,13 +74,10 @@ func PrintFilter(cfa CheckFilterArgs) error {
 	return nil
 }
 
-func GetFilter(cfa CheckFilterArgs) (bytes.Buffer, error) {
-
+func GetFilter(server *common.ServerConfig, cfa CheckFilterArgs) (bytes.Buffer, error) {
 	var ret bytes.Buffer
-	// get the filter
-	// pack it as json
 
-	baseURL, err := common.GetBaseURL()
+	baseURL, err := common.GetBaseURL(server)
 	if err != nil {
 		return ret, err
 	}
@@ -77,6 +90,7 @@ func GetFilter(cfa CheckFilterArgs) (bytes.Buffer, error) {
 	statusQuery := common.CommandArgs{
 		Method: "GET",
 		URL:    baseURL,
+		Server: server,
 	}
 
 	body, err := common.SendCommand(statusQuery)
@@ -87,4 +101,31 @@ func GetFilter(cfa CheckFilterArgs) (bytes.Buffer, error) {
 	json.Indent(&ret, body, "", "  ")
 
 	return ret, nil
+}
+
+func GetFilterAll(servers []common.ServerConfig, cfa CheckFilterArgs) error {
+	type ServerResult struct {
+		Server string `json:"server"`
+		Result string `json:"result,omitempty"`
+		Error  string `json:"error,omitempty"`
+	}
+
+	var results []ServerResult
+	for _, server := range servers {
+		result := ServerResult{Server: server.Name}
+		filterResult, err := GetFilter(&server, cfa)
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			result.Result = filterResult.String()
+		}
+		results = append(results, result)
+	}
+
+	output, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
 }
