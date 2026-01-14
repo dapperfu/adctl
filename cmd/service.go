@@ -54,8 +54,7 @@ func init() {
 	servicesCmd.AddCommand(serviceListCmd)
 
 	serviceListCmd.AddCommand(serviceListAllCmd)
-
-	rewriteListCmd.AddCommand(serviceListBlockedCmd)
+	serviceListCmd.AddCommand(serviceListBlockedCmd)
 
 }
 
@@ -84,9 +83,25 @@ func UpdateServiceCmdE(cmd *cobra.Command, args []string) error {
 	toBlock = unique(toBlock)
 	toUnblock = unique(toUnblock)
 
-	svcs := ServiceLists{block: toBlock, permit: toUnblock}
+	servers, err := GetCurrentServers()
+	if err != nil {
+		return err
+	}
 
-	err := updateServices(svcs)
+	if serverFlag == ReservedServerName && len(servers) > 1 {
+		// Multi-server mode
+		svcs := ServiceLists{block: toBlock, permit: toUnblock}
+		return updateServicesAll(servers, svcs)
+	}
+
+	// Single server mode
+	var server *common.ServerConfig
+	if len(servers) > 0 {
+		server = &servers[0]
+	}
+
+	svcs := ServiceLists{block: toBlock, permit: toUnblock}
+	err = updateServices(server, svcs)
 	if err != nil {
 		return fmt.Errorf("error updating services %w", err)
 	}
@@ -143,10 +158,10 @@ func computeNewBlocks(currentlyBlocked AllBlockedServices, changes ServiceLists)
 	return ret, nil
 }
 
-func updateServices(svcs ServiceLists) error {
+func updateServices(server *common.ServerConfig, svcs ServiceLists) error {
 
-	// note that blocked has a schedule as well.  That just gets passed transparently through, I don't touch it.
-	blocked, err := GetBlockedServices()
+	// Get current blocked services to compute the new list
+	blocked, err := GetBlockedServices(server)
 	if err != nil {
 		return fmt.Errorf("error calling GetBlockedServices %w", err)
 	}
@@ -158,9 +173,12 @@ func updateServices(svcs ServiceLists) error {
 
 	var requestBody = make(map[string]any)
 	requestBody["ids"] = newList
-	requestBody["schedule"] = blocked.Schedule
+	// Send nil for schedule - AdGuard will set it to EmptyWeekly() which means
+	// no time restrictions (services always blocked). This allows schedules to be
+	// cleared/overwritten when updating services.
+	requestBody["schedule"] = nil
 
-	baseURL, err := common.GetBaseURL()
+	baseURL, err := common.GetBaseURL(server)
 	if err != nil {
 		return err
 	}
@@ -174,35 +192,25 @@ func updateServices(svcs ServiceLists) error {
 		Method:      "PUT",
 		URL:         baseURL,
 		RequestBody: requestBody,
+		Server:      server,
 	}
 
-	// don't care about body here
+	// Send the update
 	_, err = common.SendCommand(enableQuery)
 	if err != nil {
 		return err
 	}
-	// TODO: check to make sure that what we just pushed looks like what the server thinks
-	s, err := GetBlockedServices()
+
+	// Verify the update was successful
+	s, err := GetBlockedServices(server)
 	if err != nil {
 		return fmt.Errorf("error getting blocked services %w", err)
 	}
 
-	slices.Sort(blocked.IDs)
+	slices.Sort(newList)
 	slices.Sort(s.IDs)
 	if !slices.Equal(newList, s.IDs) {
-		return fmt.Errorf("service lists unequal: %v %v", newList, s.IDs)
-	}
-
-	// TODO: check to make sure that what we just pushed looks like what the server thinks
-	s, err = GetBlockedServices()
-	if err != nil {
-		return fmt.Errorf("error getting blocked services %w", err)
-	}
-
-	slices.Sort(blocked.IDs)
-	slices.Sort(s.IDs)
-	if !slices.Equal(newList, s.IDs) {
-		return fmt.Errorf("service lists unequal: %v %v", newList, s.IDs)
+		return fmt.Errorf("service lists unequal: expected %v, got %v", newList, s.IDs)
 	}
 
 	err = PrintBlockedServices()
@@ -246,8 +254,23 @@ func ListAllCmdE(cmd *cobra.Command, args []string) error {
 
 // TODO: make this json or text
 func PrintAllServices() error {
+	servers, err := GetCurrentServers()
+	if err != nil {
+		return err
+	}
 
-	smap, err := GetAllServices()
+	if serverFlag == ReservedServerName && len(servers) > 1 {
+		// Multi-server mode
+		return printAllServicesAll(servers)
+	}
+
+	// Single server mode
+	var server *common.ServerConfig
+	if len(servers) > 0 {
+		server = &servers[0]
+	}
+
+	smap, err := GetAllServices(server)
 	name2id := smap.Name2ID
 
 	if err != nil {
@@ -278,7 +301,7 @@ func PrintAllServices() error {
 	return nil
 }
 
-func GetAllServices() (ServiceMap, error) {
+func GetAllServices(server *common.ServerConfig) (ServiceMap, error) {
 
 	ret := NewServiceMap()
 
@@ -287,7 +310,7 @@ func GetAllServices() (ServiceMap, error) {
 
 	// get the data
 
-	baseURL, err := common.GetBaseURL()
+	baseURL, err := common.GetBaseURL(server)
 	if err != nil {
 		return ret, err
 	}
@@ -296,6 +319,7 @@ func GetAllServices() (ServiceMap, error) {
 	statusQuery := common.CommandArgs{
 		Method: "GET",
 		URL:    baseURL,
+		Server: server,
 	}
 
 	body, err := common.SendCommand(statusQuery)
@@ -340,8 +364,23 @@ type BlockedWithCount struct {
 }
 
 func PrintBlockedServices() error {
+	servers, err := GetCurrentServers()
+	if err != nil {
+		return err
+	}
 
-	s, err := GetBlockedServices()
+	if serverFlag == ReservedServerName && len(servers) > 1 {
+		// Multi-server mode
+		return printBlockedServicesAll(servers)
+	}
+
+	// Single server mode
+	var server *common.ServerConfig
+	if len(servers) > 0 {
+		server = &servers[0]
+	}
+
+	s, err := GetBlockedServices(server)
 
 	if err != nil {
 		return err
@@ -374,13 +413,13 @@ func PrintBlockedServices() error {
 	return nil
 }
 
-func GetBlockedServices() (AllBlockedServices, error) {
+func GetBlockedServices(server *common.ServerConfig) (AllBlockedServices, error) {
 
 	// get the data
 
 	ret := AllBlockedServices{}
 
-	baseURL, err := common.GetBaseURL()
+	baseURL, err := common.GetBaseURL(server)
 	if err != nil {
 		return ret, err
 	}
@@ -389,6 +428,7 @@ func GetBlockedServices() (AllBlockedServices, error) {
 	statusQuery := common.CommandArgs{
 		Method: "GET",
 		URL:    baseURL,
+		Server: server,
 	}
 
 	body, err := common.SendCommand(statusQuery)
@@ -400,4 +440,96 @@ func GetBlockedServices() (AllBlockedServices, error) {
 	json.Unmarshal(body, &s)
 
 	return s, nil
+}
+
+func printAllServicesAll(servers []common.ServerConfig) error {
+	type ServerResult struct {
+		Server string            `json:"server"`
+		Result map[string]string `json:"result,omitempty"`
+		Error  string            `json:"error,omitempty"`
+	}
+
+	var results []ServerResult
+	for _, server := range servers {
+		result := ServerResult{Server: server.Name}
+		smap, err := GetAllServices(&server)
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			result.Result = smap.Name2ID
+		}
+		results = append(results, result)
+	}
+
+	output, err := json.MarshalIndent(results, "", " ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
+}
+
+func printBlockedServicesAll(servers []common.ServerConfig) error {
+	type ServerResult struct {
+		Server string            `json:"server"`
+		Result BlockedWithCount `json:"result,omitempty"`
+		Error  string            `json:"error,omitempty"`
+	}
+
+	var results []ServerResult
+	for _, server := range servers {
+		result := ServerResult{Server: server.Name}
+		s, err := GetBlockedServices(&server)
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			result.Result = BlockedWithCount{
+				Count: len(s.IDs),
+				IDs:   s.IDs,
+			}
+		}
+		results = append(results, result)
+	}
+
+	output, err := json.MarshalIndent(results, "", " ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
+}
+
+func updateServicesAll(servers []common.ServerConfig, svcs ServiceLists) error {
+	type ServerResult struct {
+		Server string            `json:"server"`
+		Result BlockedWithCount `json:"result,omitempty"`
+		Error  string            `json:"error,omitempty"`
+	}
+
+	var results []ServerResult
+	for _, server := range servers {
+		result := ServerResult{Server: server.Name}
+		err := updateServices(&server, svcs)
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			s, err := GetBlockedServices(&server)
+			if err != nil {
+				result.Error = err.Error()
+			} else {
+				result.Result = BlockedWithCount{
+					Count: len(s.IDs),
+					IDs:   s.IDs,
+				}
+			}
+		}
+		results = append(results, result)
+	}
+
+	output, err := json.MarshalIndent(results, "", " ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
 }

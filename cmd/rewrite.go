@@ -67,8 +67,23 @@ func RewriteListCmdE(cmd *cobra.Command, args []string) error {
 }
 
 func printRewriteList() error {
+	servers, err := GetCurrentServers()
+	if err != nil {
+		return err
+	}
 
-	status, err := rewriteListCommand()
+	if serverFlag == ReservedServerName && len(servers) > 1 {
+		// Multi-server mode
+		return rewriteListCommandAll(servers)
+	}
+
+	// Single server mode
+	var server *common.ServerConfig
+	if len(servers) > 0 {
+		server = &servers[0]
+	}
+
+	status, err := rewriteListCommand(server)
 	if err != nil {
 		return err
 	}
@@ -81,13 +96,13 @@ func printRewriteList() error {
 	return nil
 }
 
-func rewriteListCommand() (RewriteList, error) {
+func rewriteListCommand(server *common.ServerConfig) (RewriteList, error) {
 
 	//var ret = make(map[string]any)
 	var ret RewriteList
 
 	// list is a GET, takes no params
-	baseURL, err := common.GetBaseURL()
+	baseURL, err := common.GetBaseURL(server)
 	if err != nil {
 		return ret, err
 	}
@@ -96,6 +111,7 @@ func rewriteListCommand() (RewriteList, error) {
 	statusQuery := common.CommandArgs{
 		Method: "GET",
 		URL:    baseURL,
+		Server: server,
 	}
 
 	body, err := common.SendCommand(statusQuery)
@@ -126,7 +142,27 @@ func RewriteCommand(cmd *cobra.Command, args []string, add bool) error {
 		return err
 	}
 
-	err = doRewriteAction(domain, answer, add)
+	servers, err := GetCurrentServers()
+	if err != nil {
+		return err
+	}
+
+	if serverFlag == ReservedServerName && len(servers) > 1 {
+		// Multi-server mode
+		err = doRewriteActionAll(servers, domain, answer, add)
+		if err != nil {
+			return err
+		}
+		return rewriteListCommandAll(servers)
+	}
+
+	// Single server mode
+	var server *common.ServerConfig
+	if len(servers) > 0 {
+		server = &servers[0]
+	}
+
+	err = doRewriteAction(server, domain, answer, add)
 	if err != nil {
 		return err
 	}
@@ -135,14 +171,14 @@ func RewriteCommand(cmd *cobra.Command, args []string, add bool) error {
 
 }
 
-func doRewriteAction(domain string, answer string, add bool) error {
+func doRewriteAction(server *common.ServerConfig, domain string, answer string, add bool) error {
 
 	var requestBody = make(map[string]any)
 	var err error
 	requestBody["domain"] = domain
 	requestBody["answer"] = answer
 
-	baseURL, err := common.GetBaseURL()
+	baseURL, err := common.GetBaseURL(server)
 	if err != nil {
 		return err
 	}
@@ -158,11 +194,12 @@ func doRewriteAction(domain string, answer string, add bool) error {
 		Method:      "POST",
 		URL:         baseURL,
 		RequestBody: requestBody,
+		Server:      server,
 	}
 
 	if add {
 		// delete before adding because adding isn't idempotent.
-		err = doRewriteAction(domain, answer, false)
+		err = doRewriteAction(server, domain, answer, false)
 		if err != nil {
 			return err
 		}
@@ -173,5 +210,46 @@ func doRewriteAction(domain string, answer string, add bool) error {
 		return err
 	}
 
+	return nil
+}
+
+func rewriteListCommandAll(servers []common.ServerConfig) error {
+	type ServerResult struct {
+		Server string      `json:"server"`
+		Result RewriteList `json:"result,omitempty"`
+		Error  string      `json:"error,omitempty"`
+	}
+
+	var results []ServerResult
+	for _, server := range servers {
+		result := ServerResult{Server: server.Name}
+		rewriteList, err := rewriteListCommand(&server)
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			result.Result = rewriteList
+		}
+		results = append(results, result)
+	}
+
+	output, err := json.MarshalIndent(results, "", " ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
+}
+
+func doRewriteActionAll(servers []common.ServerConfig, domain string, answer string, add bool) error {
+	var errors []string
+	for _, server := range servers {
+		err := doRewriteAction(&server, domain, answer, add)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("%s: %v", server.Name, err))
+		}
+	}
+	if len(errors) > 0 {
+		return fmt.Errorf("errors updating rewrites: %v", errors)
+	}
 	return nil
 }
