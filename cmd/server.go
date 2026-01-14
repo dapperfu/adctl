@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/ewosborne/adctl/common"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
