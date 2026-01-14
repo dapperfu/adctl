@@ -194,3 +194,24 @@ func ServerExists(name string) bool {
 	_, err := GetServer(name)
 	return err == nil
 }
+
+// GetCurrentServer returns the server config for the current server flag
+// Returns nil if "all" is selected (caller should handle multi-server case)
+func GetCurrentServer() (*common.ServerConfig, error) {
+	if serverFlag == ReservedServerName {
+		return nil, nil // nil means "all"
+	}
+	return GetServer(serverFlag)
+}
+
+// GetCurrentServers returns all servers to target based on the server flag
+func GetCurrentServers() ([]common.ServerConfig, error) {
+	if serverFlag == ReservedServerName {
+		return GetServers()
+	}
+	server, err := GetServer(serverFlag)
+	if err != nil {
+		return nil, err
+	}
+	return []common.ServerConfig{*server}, nil
+}

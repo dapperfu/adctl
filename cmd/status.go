@@ -44,7 +44,22 @@ type ReadableStatus struct {
 }
 
 func StatusGetCmdE(cmd *cobra.Command, args []string) error {
-	s, err := GetStatus()
+	servers, err := GetCurrentServers()
+	if err != nil {
+		return err
+	}
+
+	if serverFlag == ReservedServerName && len(servers) > 1 {
+		// Multi-server mode
+		return GetStatusAll(servers)
+	}
+
+	// Single server mode
+	var server *common.ServerConfig
+	if len(servers) > 0 {
+		server = &servers[0]
+	}
+	s, err := GetStatus(server)
 	if err != nil {
 		return err
 	}
@@ -56,14 +71,28 @@ func init() {
 }
 
 func printToggle() error {
-	var err error
-
-	err = toggleCommand()
+	servers, err := GetCurrentServers()
 	if err != nil {
 		return err
 	}
 
-	status, err := GetStatus()
+	if serverFlag == ReservedServerName && len(servers) > 1 {
+		// Multi-server mode
+		return toggleCommandAll(servers)
+	}
+
+	// Single server mode
+	var server *common.ServerConfig
+	if len(servers) > 0 {
+		server = &servers[0]
+	}
+
+	err = toggleCommand(server)
+	if err != nil {
+		return err
+	}
+
+	status, err := GetStatus(server)
 	if err != nil {
 		return err
 	}
@@ -71,8 +100,8 @@ func printToggle() error {
 	return nil
 }
 
-func toggleCommand() error {
-	status, err := GetStatus()
+func toggleCommand(server *common.ServerConfig) error {
+	status, err := GetStatus(server)
 	if err != nil {
 		return err
 	}
@@ -80,11 +109,43 @@ func toggleCommand() error {
 	dTime := DisableTime{HasTimeout: false}
 	switch status.Protection_enabled {
 	case true:
-		disableCommand(dTime)
+		_, err = disableCommand(server, dTime)
 	case false:
-		enableCommand()
+		_, err = enableCommand(server)
 	}
 
+	return err
+}
+
+func toggleCommandAll(servers []common.ServerConfig) error {
+	type ServerResult struct {
+		Server string `json:"server"`
+		Status Status `json:"status,omitempty"`
+		Error  string `json:"error,omitempty"`
+	}
+
+	var results []ServerResult
+	for _, server := range servers {
+		result := ServerResult{Server: server.Name}
+		err := toggleCommand(&server)
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			status, err := GetStatus(&server)
+			if err != nil {
+				result.Error = err.Error()
+			} else {
+				result.Status = status
+			}
+		}
+		results = append(results, result)
+	}
+
+	output, err := json.MarshalIndent(results, "", " ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
 	return nil
 }
 
@@ -111,13 +172,12 @@ func PrintStatus(status Status) error {
 	return nil
 }
 
-func GetStatus() (Status, error) {
+// GetStatus gets status for a specific server (nil means legacy/viper config)
+func GetStatus(server *common.ServerConfig) (Status, error) {
 	var ret Status
-	// get status
-	// then return it?
 
 	// build the command, it's specific to status
-	baseURL, err := common.GetBaseURL()
+	baseURL, err := common.GetBaseURL(server)
 	if err != nil {
 		return ret, err
 	}
@@ -126,6 +186,7 @@ func GetStatus() (Status, error) {
 	statusQuery := common.CommandArgs{
 		Method: "GET",
 		URL:    baseURL,
+		Server: server,
 	}
 
 	body, err := common.SendCommand(statusQuery)
@@ -138,4 +199,34 @@ func GetStatus() (Status, error) {
 	json.Unmarshal(body, &s)
 
 	return s, nil
+}
+
+// GetStatusAll gets status for all servers
+func GetStatusAll(servers []common.ServerConfig) error {
+	type ServerStatus struct {
+		Server string `json:"server"`
+		Status Status `json:"status"`
+		Error  string `json:"error,omitempty"`
+	}
+
+	var results []ServerStatus
+	for _, server := range servers {
+		status, err := GetStatus(&server)
+		result := ServerStatus{
+			Server: server.Name,
+		}
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			result.Status = status
+		}
+		results = append(results, result)
+	}
+
+	output, err := json.MarshalIndent(results, "", " ")
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(output))
+	return nil
 }
