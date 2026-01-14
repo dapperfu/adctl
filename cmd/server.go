@@ -106,7 +106,7 @@ func serverAddCmdE(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create server config
-	server := ServerConfig{
+	server := common.ServerConfig{
 		Name:     name,
 		Host:     host,
 		Username: username,

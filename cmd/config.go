@@ -10,18 +10,11 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"github.com/ewosborne/adctl/common"
 	"github.com/spf13/viper"
 )
 
 const ReservedServerName = "all"
-
-// ServerConfig represents a single AdGuard server configuration
-type ServerConfig struct {
-	Name     string `mapstructure:"name" yaml:"name"`
-	Host     string `mapstructure:"host" yaml:"host"`
-	Username string `mapstructure:"username" yaml:"username"`
-	Password string `mapstructure:"password" yaml:"password"`
-}
 
 // GetConfigDir returns the OS-specific configuration directory
 func GetConfigDir() (string, error) {
@@ -67,8 +60,8 @@ func EnsureConfigDir() error {
 }
 
 // GetServers returns all configured servers
-func GetServers() ([]ServerConfig, error) {
-	var servers []ServerConfig
+func GetServers() ([]common.ServerConfig, error) {
+	var servers []common.ServerConfig
 
 	// Check for new multi-server format
 	if viper.IsSet("servers") {
@@ -86,7 +79,7 @@ func GetServers() ([]ServerConfig, error) {
 
 	if host != "" && username != "" && password != "" {
 		// Legacy config found, create a default server
-		servers = []ServerConfig{
+		servers = []common.ServerConfig{
 			{
 				Name:     "default",
 				Host:     host,
@@ -101,7 +94,7 @@ func GetServers() ([]ServerConfig, error) {
 }
 
 // GetServer returns a specific server configuration by name
-func GetServer(name string) (*ServerConfig, error) {
+func GetServer(name string) (*common.ServerConfig, error) {
 	if name == ReservedServerName {
 		return nil, fmt.Errorf("'%s' is a reserved server name", ReservedServerName)
 	}
@@ -121,7 +114,7 @@ func GetServer(name string) (*ServerConfig, error) {
 }
 
 // AddServer adds a new server to the configuration
-func AddServer(server ServerConfig) error {
+func AddServer(server common.ServerConfig) error {
 	// Validate server name
 	if server.Name == "" {
 		return fmt.Errorf("server name cannot be empty")
@@ -161,7 +154,7 @@ func AddServer(server ServerConfig) error {
 }
 
 // SaveServers writes the server list to the config file
-func SaveServers(servers []ServerConfig) error {
+func SaveServers(servers []common.ServerConfig) error {
 	// Ensure config directory exists
 	if err := EnsureConfigDir(); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
