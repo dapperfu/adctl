@@ -55,6 +55,14 @@ var dhcpResetCmd = &cobra.Command{
 	RunE:  dhcpResetCmdE,
 }
 
+// dhcpResetLeasesCmd represents the reset-leases command
+var dhcpResetLeasesCmd = &cobra.Command{
+	Use:   "reset-leases",
+	Short: "Reset DHCP leases (clears all active leases)",
+	Long:  "Reset DHCP leases by clearing all active dynamic leases. This does not affect static leases or DHCP configuration.",
+	RunE:  dhcpResetLeasesCmdE,
+}
+
 // dhcpStaticLeaseCmd represents the static-lease command
 var dhcpStaticLeaseCmd = &cobra.Command{
 	Use:   "static-lease",
@@ -174,6 +182,7 @@ func init() {
 	dhcpCmd.AddCommand(dhcpCheckCmd)
 	dhcpCmd.AddCommand(dhcpConfigCmd)
 	dhcpCmd.AddCommand(dhcpResetCmd)
+	dhcpCmd.AddCommand(dhcpResetLeasesCmd)
 	dhcpCmd.AddCommand(dhcpStaticLeaseCmd)
 
 	// Config command flags
@@ -350,6 +359,31 @@ func dhcpResetCmdE(cmd *cobra.Command, args []string) error {
 
 	// Return updated status
 	return dhcpStatusCmdE(cmd, args)
+}
+
+// dhcpResetLeasesCmdE handles the dhcp reset-leases command
+func dhcpResetLeasesCmdE(cmd *cobra.Command, args []string) error {
+	servers, err := GetCurrentServers()
+	if err != nil {
+		return err
+	}
+
+	if serverFlag == ReservedServerName && len(servers) > 1 {
+		return dhcpResetLeasesCommandAll(servers)
+	}
+
+	var server *common.ServerConfig
+	if len(servers) > 0 {
+		server = &servers[0]
+	}
+
+	err = resetDHCPLeases(server)
+	if err != nil {
+		return err
+	}
+
+	// Return updated leases
+	return dhcpLeasesCmdE(cmd, args)
 }
 
 // dhcpStaticLeaseListCmdE handles the static-lease list command
@@ -647,6 +681,28 @@ func resetDHCP(server *common.ServerConfig) error {
 	return nil
 }
 
+// resetDHCPLeases resets DHCP leases (clears active leases)
+func resetDHCPLeases(server *common.ServerConfig) error {
+	baseURL, err := common.GetBaseURL(server)
+	if err != nil {
+		return err
+	}
+	baseURL.Path = "/control/dhcp/reset_leases"
+
+	resetQuery := common.CommandArgs{
+		Method: "POST",
+		URL:    baseURL,
+		Server: server,
+	}
+
+	_, err = common.SendCommand(resetQuery)
+	if err != nil {
+		return fmt.Errorf("failed to reset DHCP leases: %w", err)
+	}
+
+	return nil
+}
+
 // addStaticLease adds a static lease
 func addStaticLease(server *common.ServerConfig, ip, mac, hostname string) error {
 	requestBody := make(map[string]any)
@@ -872,6 +928,38 @@ func dhcpResetCommandAll(servers []common.ServerConfig) error {
 				result.Error = err.Error()
 			} else {
 				result.Result = status
+			}
+		}
+		results = append(results, result)
+	}
+
+	output, err := json.MarshalIndent(results, "", " ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal results: %w", err)
+	}
+	fmt.Println(string(output))
+	return nil
+}
+
+func dhcpResetLeasesCommandAll(servers []common.ServerConfig) error {
+	type ServerResult struct {
+		Server string          `json:"server"`
+		Result []LeaseDynamic `json:"result,omitempty"`
+		Error  string          `json:"error,omitempty"`
+	}
+
+	var results []ServerResult
+	for _, server := range servers {
+		result := ServerResult{Server: server.Name}
+		err := resetDHCPLeases(&server)
+		if err != nil {
+			result.Error = err.Error()
+		} else {
+			status, err := getDHCPStatus(&server)
+			if err != nil {
+				result.Error = err.Error()
+			} else {
+				result.Result = status.Leases
 			}
 		}
 		results = append(results, result)
