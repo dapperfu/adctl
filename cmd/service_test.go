@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"slices"
 	"testing"
 )
@@ -8,7 +9,11 @@ import (
 // TODO: testscript
 
 func Test_ListAll(t *testing.T) {
-	_, err := GetAllServices()
+	if os.Getenv("ADCTL_HOST") == "" || os.Getenv("ADCTL_USERNAME") == "" || os.Getenv("ADCTL_PASSWORD") == "" {
+		t.Skip("integration test requires ADCTL_HOST, ADCTL_USERNAME, and ADCTL_PASSWORD")
+	}
+
+	_, err := GetAllServices(nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -16,7 +21,11 @@ func Test_ListAll(t *testing.T) {
 }
 
 func Test_ListBlocked(t *testing.T) {
-	_, err := GetBlockedServices()
+	if os.Getenv("ADCTL_HOST") == "" || os.Getenv("ADCTL_USERNAME") == "" || os.Getenv("ADCTL_PASSWORD") == "" {
+		t.Skip("integration test requires ADCTL_HOST, ADCTL_USERNAME, and ADCTL_PASSWORD")
+	}
+
+	_, err := GetBlockedServices(nil)
 	if err != nil {
 		t.Error(err)
 	}
