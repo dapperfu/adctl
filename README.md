@@ -21,6 +21,21 @@
 
     Use "adctl [command] --help" for more information about a command.
 
+## Shell completion
+
+`adctl` includes a built-in `completion` command (bash/zsh/fish/powershell).
+
+- **Zsh (current session)**:
+    source <(adctl completion zsh)
+
+- **Bash (current session)**:
+    source <(adctl completion bash)
+
+- **Fish (current session)**:
+    adctl completion fish | source
+
+Run `adctl completion <shell> --help` for install instructions for your platform.
+
 You need three environment variables: 
 
     ADCTL_USERNAME="<username you use to log into the AdGuard Home web UI>"
