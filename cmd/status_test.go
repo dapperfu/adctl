@@ -1,26 +1,31 @@
 package cmd
 
 import (
+	"os"
 	"testing"
 )
 
 // TODO: testscript which just looks for valid json
 func TestToggle(t *testing.T) {
+	if os.Getenv("ADCTL_HOST") == "" || os.Getenv("ADCTL_USERNAME") == "" || os.Getenv("ADCTL_PASSWORD") == "" {
+		t.Skip("integration test requires ADCTL_HOST, ADCTL_USERNAME, and ADCTL_PASSWORD")
+	}
+
 	// get initial state
 	// toggle to other, make sure it sticks
 	// toggle back
 
-	initialState, err := GetStatus()
+	initialState, err := GetStatus(nil)
 	if err != nil {
 		t.Errorf("error getting initial status: %v", err)
 	}
 
-	err = toggleCommand()
+	err = toggleCommand(nil)
 	if err != nil {
 		t.Errorf("error toggling command: %v", err)
 	}
 
-	secondState, err := GetStatus()
+	secondState, err := GetStatus(nil)
 	if err != nil {
 		t.Errorf("error getting second status: %v", err)
 	}
@@ -30,11 +35,11 @@ func TestToggle(t *testing.T) {
 		t.Errorf("first toggle: protection states do not match")
 	}
 
-	err = toggleCommand()
+	err = toggleCommand(nil)
 	if err != nil {
 		t.Errorf("error toggling command: %v", err)
 	}
-	thirdState, err := GetStatus()
+	thirdState, err := GetStatus(nil)
 	if err != nil {
 		t.Errorf("error getting third status: %v", err)
 	}
@@ -47,9 +52,13 @@ func TestToggle(t *testing.T) {
 }
 
 func TestEnable(t *testing.T) {
+	if os.Getenv("ADCTL_HOST") == "" || os.Getenv("ADCTL_USERNAME") == "" || os.Getenv("ADCTL_PASSWORD") == "" {
+		t.Skip("integration test requires ADCTL_HOST, ADCTL_USERNAME, and ADCTL_PASSWORD")
+	}
+
 	// test cmd.enableCommand()
 
-	Status, err := enableCommand()
+	Status, err := enableCommand(nil)
 	want := true
 
 	if err != nil {
@@ -63,11 +72,15 @@ func TestEnable(t *testing.T) {
 }
 
 func TestDisable_Permanent(t *testing.T) {
+	if os.Getenv("ADCTL_HOST") == "" || os.Getenv("ADCTL_USERNAME") == "" || os.Getenv("ADCTL_PASSWORD") == "" {
+		t.Skip("integration test requires ADCTL_HOST, ADCTL_USERNAME, and ADCTL_PASSWORD")
+	}
+
 	// test cmd.enableCommand()
 
 	dTime := DisableTime{HasTimeout: false}
 
-	Status, err := disableCommand(dTime)
+	Status, err := disableCommand(nil, dTime)
 	want := false
 
 	if err != nil {
@@ -81,11 +94,15 @@ func TestDisable_Permanent(t *testing.T) {
 }
 
 func TestDisable_Temporary(t *testing.T) {
+	if os.Getenv("ADCTL_HOST") == "" || os.Getenv("ADCTL_USERNAME") == "" || os.Getenv("ADCTL_PASSWORD") == "" {
+		t.Skip("integration test requires ADCTL_HOST, ADCTL_USERNAME, and ADCTL_PASSWORD")
+	}
+
 	// test cmd.enableCommand()
 
 	dTime := DisableTime{HasTimeout: true, Duration: "30s"}
 
-	Status, err := disableCommand(dTime)
+	Status, err := disableCommand(nil, dTime)
 	want := false
 
 	if err != nil {
