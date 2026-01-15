@@ -7,6 +7,13 @@ import (
 	"github.com/rogpeppe/go-internal/testscript"
 )
 
+func requireADCTLEnv(t *testing.T) {
+	t.Helper()
+	if os.Getenv("ADCTL_HOST") == "" || os.Getenv("ADCTL_USERNAME") == "" || os.Getenv("ADCTL_PASSWORD") == "" {
+		t.Skip("integration test requires ADCTL_HOST, ADCTL_USERNAME, and ADCTL_PASSWORD")
+	}
+}
+
 func setupEnv(env *testscript.Env) error {
 	env.Setenv("ADCTL_HOST", os.Getenv("ADCTL_HOST"))
 	env.Setenv("ADCTL_USERNAME", os.Getenv("ADCTL_USERNAME"))
@@ -35,6 +42,7 @@ func TestMain(m *testing.M) {
 
 // all tests which can be run in parallel can go here.
 func Test_AllReadonly(t *testing.T) {
+	requireADCTLEnv(t)
 	testscript.Run(t, testscript.Params{
 		//Dir:   "testdata/script",
 		Setup: setupEnv,
@@ -72,6 +80,7 @@ func Test_AllReadonly(t *testing.T) {
 // }
 
 func TestEnableCLI(t *testing.T) {
+	requireADCTLEnv(t)
 	testscript.Run(t, testscript.Params{
 		//Dir:   "testdata/script",
 		Setup: setupEnv,
@@ -81,6 +90,7 @@ func TestEnableCLI(t *testing.T) {
 }
 
 func TestDisableCLI(t *testing.T) {
+	requireADCTLEnv(t)
 	testscript.Run(t, testscript.Params{
 		//Dir:   "testdata/script",
 		Setup: setupEnv,
@@ -90,6 +100,7 @@ func TestDisableCLI(t *testing.T) {
 }
 
 func TestDisableTimeoutCLI(t *testing.T) {
+	requireADCTLEnv(t)
 	testscript.Run(t, testscript.Params{
 		//Dir:   "testdata/script",
 		Setup: setupEnv,
