@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 )
 
@@ -16,8 +17,12 @@ var TestLogArgsInstance = LogArgs{limit: "10", filter: "all"}
 // TODO: tescript test.  maybe 'adctl log get 5' then validate length and json and that there's an 'oldest'?
 
 func Test_LogGet(t *testing.T) {
+	if os.Getenv("ADCTL_HOST") == "" || os.Getenv("ADCTL_USERNAME") == "" || os.Getenv("ADCTL_PASSWORD") == "" {
+		t.Skip("integration test requires ADCTL_HOST, ADCTL_USERNAME, and ADCTL_PASSWORD")
+	}
+
 	// test only a small log thing
-	log, err := getLogCommand(TestLogArgsInstance)
+	log, err := getLogCommand(nil, TestLogArgsInstance)
 
 	if err != nil {
 		t.Error("error getting getLogCommand", err)
@@ -29,11 +34,14 @@ func Test_LogGet(t *testing.T) {
 }
 
 func Test_LogGet_Filter(t *testing.T) {
+	if os.Getenv("ADCTL_HOST") == "" || os.Getenv("ADCTL_USERNAME") == "" || os.Getenv("ADCTL_PASSWORD") == "" {
+		t.Skip("integration test requires ADCTL_HOST, ADCTL_USERNAME, and ADCTL_PASSWORD")
+	}
 
 	// test with an allowed and disallowed filter.
 	// filter comes from the variable declared as a flag
 	var err error
-	body, err := getLogCommand(TestLogArgsInstance)
+	body, err := getLogCommand(nil, TestLogArgsInstance)
 
 	if err != nil {
 		t.Error("error getting getLogCommand with valid filter", err)
@@ -50,7 +58,7 @@ func Test_LogGet_Filter(t *testing.T) {
 
 	initialFilter := TestLogArgsInstance.filter
 	TestLogArgsInstance.filter = "bogon"
-	_, err = getLogCommand(TestLogArgsInstance) // do not capture body here, it's empty, I just care about error
+	_, err = getLogCommand(nil, TestLogArgsInstance) // do not capture body here, it's empty, I just care about error
 	TestLogArgsInstance.filter = initialFilter  // reset because this would otherwise carry across tests
 
 	if err == nil {
@@ -59,11 +67,14 @@ func Test_LogGet_Filter(t *testing.T) {
 
 }
 func Test_LogGet_Search(t *testing.T) {
+	if os.Getenv("ADCTL_HOST") == "" || os.Getenv("ADCTL_USERNAME") == "" || os.Getenv("ADCTL_PASSWORD") == "" {
+		t.Skip("integration test requires ADCTL_HOST, ADCTL_USERNAME, and ADCTL_PASSWORD")
+	}
 
 	var err error
 
 	TestLogArgsInstance.search = "example.com"
-	body, err := getLogCommand(TestLogArgsInstance)
+	body, err := getLogCommand(nil, TestLogArgsInstance)
 
 	if err != nil {
 		t.Error("got non-fill error testing getLogCommand")
